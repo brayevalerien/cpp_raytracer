@@ -1,3 +1,5 @@
+#define UNICODE
+
 #include <windows.h>
 
 static HWND sHwnd;
@@ -14,7 +16,7 @@ void setPixel(int x,int y,COLORREF& color=redColor)
 {
     if(sHwnd==NULL)
     {
-        MessageBox(NULL,"sHwnd was not initialized !","Error",MB_OK|MB_ICONERROR);
+        MessageBox(NULL, L"sHwnd was not initialized !", L"Error",MB_OK|MB_ICONERROR);
         exit(0);
     }
     HDC hdc=GetDC(sHwnd);
@@ -66,12 +68,12 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,i
     // Register the window
     if(!RegisterClass(& wndclass))
     {
-        MessageBox(NULL,"Registering the class failed","Error",MB_OK|MB_ICONERROR);
+        MessageBox(NULL, L"Registering the class failed", L"Error",MB_OK|MB_ICONERROR);
         exit(0);
     }
     
     // CreateWindow
-    HWND hwnd=CreateWindow(szAppName,"SetPixel example - codewithc.com",
+    HWND hwnd=CreateWindow(szAppName,L"SetPixel example",
                            WS_OVERLAPPEDWINDOW,
                            CW_USEDEFAULT,
                            CW_USEDEFAULT,
@@ -83,7 +85,7 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,i
                            NULL);
     if(!hwnd)
     {
-        MessageBox(NULL,"Window Creation Failed!","Error",MB_OK);
+        MessageBox(NULL, L"Window Creation Failed!", L"Error",MB_OK);
         exit(0);
     }
     
