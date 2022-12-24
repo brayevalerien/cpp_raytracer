@@ -28,7 +28,7 @@ void setPixel(int x,int y,COLORREF& color=redColor)
 void drawLine()
 {
     for(int i = 0; i < 100; i++)
-        setPixel(10+i, 100, blueColor);
+        setPixel(10+i, 100, greenColor);
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
@@ -61,7 +61,7 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,i
     wndclass.hInstance     = hInstance ;
     wndclass.hIcon         = LoadIcon (NULL, IDI_APPLICATION) ;
     wndclass.hCursor       = LoadCursor (NULL, IDC_ARROW) ;
-    wndclass.hbrBackground = (HBRUSH) GetStockObject (WHITE_BRUSH) ;
+    wndclass.hbrBackground = (HBRUSH) GetStockObject (BLACK_BRUSH) ;
     wndclass.lpszMenuName  = NULL ;
     wndclass.lpszClassName = szAppName ;
     
