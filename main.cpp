@@ -28,7 +28,7 @@ void setPixel(int x,int y,COLORREF& color=redColor)
 void drawLine()
 {
     for(int i = 0; i < 100; i++)
-        setPixel(10+i, 100, greenColor);
+        setPixel(10+i, 100+i, greenColor);
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
