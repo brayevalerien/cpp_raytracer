@@ -1,11 +1,15 @@
 #define UNICODE
 
 #include <windows.h>
+#include <iostream>
+#include <string>
 
 static HWND sHwnd;
 static COLORREF redColor=RGB(255,0,0);
 static COLORREF blueColor=RGB(0,0,255);
 static COLORREF greenColor=RGB(0,255,0);
+static int xRes = 1200; 
+static int yRes = 720; 
 
 void SetWindowHandle(HWND hwnd)
 {
@@ -25,10 +29,14 @@ void setPixel(int x,int y,COLORREF& color=redColor)
     return;
 }
 
-void drawLine()
+void render()
 {
-    for(int i = 0; i < 100; i++)
-        setPixel(10+i, 100+i, greenColor);
+    for(int x = 0; x < xRes; x++) {
+        for(int y = 0; y < yRes; y++) {
+            COLORREF pixelColor = RGB(x%256, y%256, 0);
+            setPixel(x, y, pixelColor);
+        }
+    }
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
@@ -37,7 +45,7 @@ LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
     {
     case WM_PAINT:
         SetWindowHandle(hwnd);
-        drawLine();
+        render();
         break;
     case WM_CLOSE: // Failure to call DefWindowProc
         break;
@@ -73,7 +81,7 @@ int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevInstance,LPSTR lpCmdLine,i
     }
     
     // CreateWindow
-    HWND hwnd=CreateWindow(szAppName,L"SetPixel example",
+    HWND hwnd=CreateWindow(szAppName,L"cpp raytracer",
                            WS_OVERLAPPEDWINDOW,
                            CW_USEDEFAULT,
                            CW_USEDEFAULT,
