@@ -116,8 +116,8 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
             return Scene(Vector3(0, 0, 0), // camera position
                          1, 1, 1, // projection plane properties
                          { // vector of spheres in the scene
-                            Sphere(Vector3(0, 1, 2), 1, RGB(255, 0, 0)),
                             Sphere(Vector3(-1, -1, 4), 1, RGB(0, 255, 0)),
+                            Sphere(Vector3(0, 1, 2), 1, RGB(255, 0, 0)),
                             Sphere(Vector3(2, -2, 4), 1, RGB(0, 0, 255))
                          });
         }
@@ -155,24 +155,23 @@ COLORREF traceRay(Scene scene, Vector3 origin, Vector3 target, float t_min, floa
      * @param t_max The maximum distance of a hit Vector3
     */
     float closestDist = numeric_limits<float>::infinity();
-    Sphere *closestSphere = NULL;
-    for (Sphere sphere: scene.spheres) {
+    int closestSphereIndex = -1;
+    for (int i = 0; i < scene.spheres.size(); i++) {
         float t1, t2;
-        tie(t1, t2) = sphere.intersectRay(origin, target);
+        tie(t1, t2) = scene.spheres[i].intersectRay(origin, target);
         if (t_min <= t1 && t1 <= t_max && t1 < closestDist) { // found a better valid hitpoint
+            closestSphereIndex = i;
             closestDist = t1;
-            closestSphere = &sphere;
         }
         if (t_min <= t2 && t2 <= t_max && t2 < closestDist) { // found a better valid hitpoint
+            closestSphereIndex = i;
             closestDist = t2;
-            closestSphere = &sphere;
         }
     }
-    if (closestSphere == NULL) { // case where the ray did not intersect any sphere
+    if (closestSphereIndex == -1) { // case where the ray did not intersect any sphere
         return backgroundColor;
     }
-    Sphere finalSphere = *closestSphere;
-    return finalSphere.color;
+    return scene.spheres[closestSphereIndex].color;
 }
 
 COLORREF viewportColor(Scene scene, Vector3 vpPos) {
