@@ -5,12 +5,14 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <limits>
 
 using namespace std;
 
 
 static HWND sHwnd;
 static COLORREF defaultColor = RGB(255, 0, 0); // will be used the default color for a pixel if not specified
+static COLORREF backgroundColor = RGB(0, 0, 0);
 static int xRes = 1200; // image resolution in pixels
 static int yRes = 720;
 static float projPlaneHeight = 2880;
@@ -18,13 +20,28 @@ static float projPlaneWidth = 4800;
 static float projPlaneDistance = 1; // distance between the projection plane and the camera
 
 
-class Sphere{
+class Point{ // stores the coordinates of a point in 3D space
     public:
-        tuple<float, float, float> center;
+        float x, y, z; // point coordinates
+
+        Point() {} // default constructor
+
+        Point(float x, float y, float z){
+            this->x = x;
+            this->y = y;
+            this->z = z;
+        }
+};
+
+class Sphere{ // a sphere that has a geometry (center, radius) and a color
+    public:
+        Point center;
         float radius;
         COLORREF color;
+
+        Sphere() {} // default Sphere constructor
     
-        Sphere(tuple<float, float, float> center, float radius, COLORREF color) {
+        Sphere(Point center, float radius, COLORREF color) {
             this->center = center;
             this->radius = radius;
             this->color = color;
@@ -33,31 +50,97 @@ class Sphere{
 
 class Scene { // a scene that contains objects and a projection plane (viewport)
     public:
-        // Projection plane properties
+        Point cameraPos;
         float projPlaneWidth;
         float projPlaneHeight;
-        float projPlaneDistance;
+        float projPlaneDistance; // controls the inverse camera fov
         vector<Sphere> spheres; // contains all spheres in the scene
 
-        Scene(float projPlaneWidth, float projPlaneHeight, float projPlaneDistance, vector<Sphere> spheres) {
+        Scene() {} // default Scene constructor
+
+        Scene(Point cameraPos, float projPlaneWidth, float projPlaneHeight, float projPlaneDistance, vector<Sphere> spheres) {
+            this->cameraPos = cameraPos;
             this->projPlaneWidth = projPlaneWidth;
             this->projPlaneHeight = projPlaneHeight;
             this->projPlaneDistance = projPlaneDistance;
             this->spheres = spheres;
         }
 
-        Scene getDefaultScene() { // returns a default scene with three spheres
-            return Scene(1, 1, 1,
-                         {
-                            Sphere(make_tuple(0, -1, 3), 1.0, RGB(255, 0, 0)),
-                            Sphere(make_tuple(2, 0, 4), 1, RGB(0, 0, 255)),
-                            Sphere(make_tuple(-2, 0, 4), 1, RGB(0, 255, 0))
+        static Scene getDefaultScene() { // returns a default scene with three spheres
+            return Scene(Point(0, 0, 0), // camera position
+                         9, 6, 1, // projection plane properties
+                         { // vector of spheres in the scene
+                            Sphere(Point(0, -1, 3), 1.0, RGB(255, 0, 0)),
+                            Sphere(Point(2, 0, 4), 1, RGB(0, 0, 255)),
+                            Sphere(Point(-2, 0, 4), 1, RGB(0, 255, 0))
                          });
         }
 };
 
 void SetWindowHandle(HWND hwnd) {
     sHwnd=hwnd;
+}
+
+
+Point screenToProjPlane(Scene scene, int screenX, int screenY) {
+    /**
+     * Convert a pixel position in the canvas into a 3D viewport position in the projection
+     * plane
+     * 
+     * @param scene The scene that needs to be rendered
+     * @param screenX The x coordinate in the canvas
+     * @param screenY The y coordinate in the canvas
+     * @return a 3-upple of coordinates in the viewport (projection plane in 3D space)
+    */
+    float vpX = screenX * scene.projPlaneWidth/xRes;
+    float vpY = screenY * scene.projPlaneHeight/yRes;
+    float vpZ = scene.projPlaneDistance;
+    return Point(vpX, vpY, vpZ);
+}
+
+COLORREF traceRay(Scene scene, Point origin, Point target, float t_min, float t_max) {
+    /**
+     * Compute the ray that goes from origin to target and retuns the color of the closest hitpoint with
+     * distance betwen t_min and t_max
+     * 
+     * @param scene The scene to trace the ray in
+     * @param origin The ray origin
+     * @param target The ray target (where the ray is headed)
+     * @param t_min The minimum distance of a hit point
+     * @param t_max The maximum distance of a hit point
+    */
+    float closestDist = numeric_limits<float>::infinity();
+    Sphere closestSphere;
+
+    // TODO: translate the following pseudocode
+    // for sphere in scene.spheres {
+    //     t1, t2 = IntersectRaySphere(O, D, sphere)
+    //     if t1 in [t_min, t_max] and t1 < closest_t {
+    //         closest_t = t1
+    //         closest_sphere = sphere
+    //     }
+    //     if t2 in [t_min, t_max] and t2 < closest_t {
+    //         closest_t = t2
+    //         closest_sphere = sphere
+    //     }
+    // }
+    // if closest_sphere == NULL {
+    //    ❶return BACKGROUND_COLOR
+    // }
+    // return closest_sphere.color
+
+    for (Sphere sphere: scene.spheres) {
+        
+    }
+}
+
+COLORREF viewportColor(Scene scene, Point vpPos) {
+    float r, g, b;
+    Point cameraPos = scene.cameraPos;
+    COLORREF color = traceRay(scene,
+                              cameraPos, vpPos,
+                              1, numeric_limits<float>::infinity());
+    return RGB(r, g, b);
 }
 
 void setPixel(int x,int y, const COLORREF& color=defaultColor) {
@@ -71,41 +154,30 @@ void setPixel(int x,int y, const COLORREF& color=defaultColor) {
     return;
 }
 
-tuple<float, float, float> canvasToViewport(int canvasX, int canvasY) {
+const COLORREF pixelColor(Scene scene, int x, int y) {
     /**
-     * Convert a pixel position in the canvas into a 3D viewport position
+     * Computes the color of a single pixel in the final image
      * 
-     * @param canvasX The x coordinate in the canvas
-     * @param canvasY The y coordinate in the canvas
-     * @return a 3-upple of coordinates in the viewport
+     * @param scene The scene that needs to be rendered
+     * @param x The pixel x coordinate in the final image
+     * @param y The pixel y coordinate in the final image
+     * @return The color of the pixel at position x, y in the final image 
     */
-    float vpX = canvasX * projPlaneWidth/xRes;
-    float vpY = canvasY * projPlaneHeight/yRes;
-    float vpZ = projPlaneDistance;
-    return make_tuple(vpX, vpY, vpZ);
-}
-
-tuple<int, int, int> viewportColor(float vpX, float vpY, float vpZ) {
-    float r, g, b;
-    // TODO write the code that computes the difuse color at the viewport position 
-    return make_tuple(r, g, b);
-}
-
-const COLORREF pixelColor(int x, int y) {
-    // the following two lines get the 3D positon of the pixel x, y in the viewport
-    float vpX, vpY, vpZ;
-    tie(vpX, vpY, vpZ) = canvasToViewport(x, y);
-    // then get the color at the 3D point
-    int r, g, b;
-    tie(r, g, b) = viewportColor(vpX, vpY, vpZ);    
-    return RGB(x%256, y%256, 0);
+    Point viewportPos = screenToProjPlane(scene, x, y);
+    COLORREF color = viewportColor(scene, viewportPos);
+    return RGB(x%256, y%256, 0); // placeholder, replace with color when finished
 }
 
 
-void render() {
+void render(Scene scene) {
+    /**
+     * Renders a scene (draws every single pixel)
+     * 
+     * @param scene The scene to render
+    */
     for(int x = 0; x < xRes; x++) {
         for(int y = 0; y < yRes; y++) {
-            COLORREF color = pixelColor(x, y);
+            COLORREF color = pixelColor(scene, x, y);
             setPixel(x, y, color);
         }
     }
@@ -115,7 +187,7 @@ LRESULT CALLBACK WndProc(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam) {
     switch(message) {
     case WM_PAINT:
         SetWindowHandle(hwnd);
-        render();
+        render(Scene::getDefaultScene());
         cout << "Rendering complete." << endl;
         break;
     case WM_CLOSE: // Failure to call DefWindowProc
