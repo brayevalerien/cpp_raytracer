@@ -108,7 +108,7 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
             this->cameraPos = cameraPos;
             this->projPlaneWidth = projPlaneWidth;
             this->projPlaneHeight = projPlaneHeight;
-            this->projPlaneDistance = -projPlaneDistance; // needs to be negative for some reason
+            this->projPlaneDistance = -projPlaneDistance; // needs to be negative for some reason ¯\_(ツ)_/¯
             this->spheres = spheres;
         }
 
@@ -116,9 +116,10 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
             return Scene(Vector3(0, 0, 0), // camera position
                          1, 1, 1, // projection plane properties
                          { // vector of spheres in the scene
-                            Sphere(Vector3(-1, -1, 4), 1, RGB(0, 255, 0)),
-                            Sphere(Vector3(0, 1, 2), 1, RGB(255, 0, 0)),
-                            Sphere(Vector3(2, -2, 4), 1, RGB(0, 0, 255))
+                            Sphere(Vector3(3, 0, 9), 1, RGB(255, 0, 0)),
+                            Sphere(Vector3(0, 0, 9), 1, RGB(0, 255, 0)),
+                            Sphere(Vector3(-3, 0, 9), 1, RGB(0, 0, 255)),
+                            Sphere(Vector3(0, -10001, 0), 10000, RGB(150, 150, 150)) // ground
                          });
         }
 };
