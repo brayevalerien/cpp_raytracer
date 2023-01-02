@@ -94,6 +94,45 @@ class Sphere{ // a sphere that has a geometry (center, radius) and a color
         }
 };
 
+class Light {
+public:
+    float intensity;
+};
+
+class AmbientLight : public Light {
+public:
+
+    AmbientLight() {} // default constructor
+
+    AmbientLight(float intensity) {
+        this->intensity = intensity;
+    }
+};
+
+class PointLight : public Light {
+public:
+    Vector3 position;
+
+    PointLight() {} // default constructor
+
+    PointLight(float intensity, Vector3 position) {
+        this->intensity = intensity;
+        this->position = position;
+    }
+};
+
+class DirectionalLight : public Light {
+public:
+    Vector3 direction;
+
+    DirectionalLight() {} // default constructor
+
+    DirectionalLight(float intensity, Vector3 direction) {
+        this->intensity = intensity;
+        this->direction = direction;
+    }
+};
+
 class Scene { // a scene that contains objects and a projection plane (viewport)
     public:
         Vector3 cameraPos;
@@ -101,15 +140,17 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
         float projPlaneHeight;
         float projPlaneDistance; // controls the inverse camera fov
         vector<Sphere> spheres; // contains all spheres in the scene
+        vector<Light> lights; // contains all lights in the scene
 
         Scene() {} // default Scene constructor
 
-        Scene(Vector3 cameraPos, float projPlaneWidth, float projPlaneHeight, float projPlaneDistance, vector<Sphere> spheres) {
+        Scene(Vector3 cameraPos, float projPlaneWidth, float projPlaneHeight, float projPlaneDistance, vector<Sphere> spheres, vector<Light> lights) {
             this->cameraPos = cameraPos;
             this->projPlaneWidth = projPlaneWidth;
             this->projPlaneHeight = projPlaneHeight;
             this->projPlaneDistance = -projPlaneDistance; // needs to be negative for some reason ¯\_(ツ)_/¯
             this->spheres = spheres;
+            this->lights = lights;
         }
 
         static Scene getDefaultScene() { // returns a default scene with three spheres
@@ -120,6 +161,11 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
                             Sphere(Vector3(0, 0, 9), 1, RGB(0, 255, 0)),
                             Sphere(Vector3(-3, 0, 9), 1, RGB(0, 0, 255)),
                             Sphere(Vector3(0, -10001, 0), 10000, RGB(150, 150, 150)) // ground
+                         },
+                         { // vector of lights in the scene
+                            AmbientLight(.2),
+                            PointLight(1, Vector3(0, -1, 9)),
+                            DirectionalLight(1, Vector3(-120, -60, 0))
                          });
         }
 };
