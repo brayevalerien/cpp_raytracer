@@ -11,7 +11,6 @@
 
 using namespace std;
 
-
 static HWND sHwnd;
 static COLORREF defaultColor = RGB(255, 0, 0); // will be used the default color for a pixel if not specified
 static COLORREF backgroundColor = RGB(0, 0, 0);
@@ -45,6 +44,10 @@ class Vector3{ // stores the coordinates of a Vector3 in 3D space
 
         Vector3 operator / (float scalar) {
             return Vector3(this->x / scalar, this->y / scalar, this->z / scalar);
+        }
+
+        bool operator == (Vector3 B) {
+            return this->x == B.x && this->y == B.y && this->z == B.z;
         }
 
         static float distance(Vector3 A, Vector3 B) { // computes the distance between A and B
@@ -133,7 +136,7 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
     public:
         Vector3 cameraPos;
         float projPlaneWidth;
-        float projPlaneHeight;
+        float projPlaneHeight; 
         float projPlaneDistance; // controls the inverse camera fov
         vector<Sphere> spheres; // contains all spheres in the scene
         vector<Light> lights; // contains all lights in the scene
@@ -149,7 +152,8 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
             this->lights = lights;
         }
 
-        static Scene getDefaultScene() { // returns a default scene with three spheres
+        static Scene getDefaultScene() { // returns default scene with three spheres and a ground
+            // the whole scene is hardcoded
             return Scene(Vector3(0, 0, 0), // camera position
                          1, 1, 1, // projection plane properties
                          { // vector of spheres in the scene
@@ -158,9 +162,9 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
                             Sphere(Vector3(-3, 0, 9), 1, RGB(0, 0, 255)),
                             Sphere(Vector3(0, -10001, 0), 10000, RGB(150, 150, 150)) // ground
                          }, { // vector of lights in the scene
-                            Light("ambient", .2, Vector3(0, 0, 0), Vector3(0, 0, 0)),
-                            Light("point", 1, Vector3(0, 2, 7), Vector3(0, 0, 0)),
-                            // Light("directional", 1, Vector3(0, 0, 0), Vector3(-120, -60, 0))
+                            Light("ambient", .1, Vector3(0, 0, 0), Vector3(0, 0, 0)),
+                            // Light("point", 1, Vector3(0, 2, 7), Vector3(0, 0, 0)),
+                            Light("directional", 1, Vector3(0, 0, 0), Vector3(-1, -1, 2))
                          });
         }
 };
@@ -187,7 +191,7 @@ Vector3 screenToProjPlane(Scene scene, int screenX, int screenY) {
 
 tuple<COLORREF, Vector3, Vector3> traceRay(Scene scene, Vector3 origin, Vector3 target, float t_min, float t_max) {
     /**
-     * Compute the ray that goes from origin to target and retuns the color of the closest hitpoint with
+     * Compute the ray that goes from origin to target and returns informations about the closest hitpoint with its
      * distance betwen t_min and t_max
      * 
      * @param scene The scene to trace the ray in
@@ -195,7 +199,7 @@ tuple<COLORREF, Vector3, Vector3> traceRay(Scene scene, Vector3 origin, Vector3 
      * @param target The ray target (where the ray is headed)
      * @param t_min The minimum distance of a hit Vector3
      * @param t_max The maximum distance of a hit Vector3
-     * @return A tuple containing the color and the normal of the closest hitpoint of the ray 
+     * @return A tuple containing the color, the position and the normal of the closest hitpoint of the ray 
     */
     float closestDist = numeric_limits<float>::infinity();
     Vector3 hitPos, hitNormal;
@@ -224,6 +228,38 @@ tuple<COLORREF, Vector3, Vector3> traceRay(Scene scene, Vector3 origin, Vector3 
     return make_tuple(scene.spheres[closestSphereIndex].color, hitPos, hitNormal);;
 }
 
+bool isLightObstructed(Scene scene, Light light, Vector3 position) {
+    /**
+     * Checks if the light is obstructed from position and in the scene (if there is an object
+     * between the light and position)
+    */
+    if (light.type == "ambient") {
+        return false; // ambient light cannot be obstructed 
+    }
+    Vector3 lightPos;
+    if (light.type == "point") {
+        lightPos = light.position;
+    }
+    if (light.type == "directional") {
+        lightPos = position - light.direction/Vector3::norm(light.direction) * 1000; // virtual position of the light
+        // lightPos = position - light.direction * numeric_limits<float>::infinity(); // virtual position of the light
+    }
+    // trace the ray from the position to the light and check if an object obstructing the (light) ray
+    COLORREF _;
+    Vector3 hitPos, hitNormal; // both equal 0 iff the light is not obstructed
+    float epsilon = 0.0001; // margin for ray collision
+    tie(_, hitPos, hitNormal) = traceRay(scene,
+                                    position, lightPos,
+                                    epsilon, Vector3::distance(lightPos, position)-epsilon);
+                                    // epsilon, 10000000);
+    if (hitPos == Vector3(0, 0, 0) && hitNormal == Vector3(0, 0, 0)) {
+        return false; // light is not obstructed
+    }
+    else {
+        return true;
+    }
+}
+
 float lightIntensity (Scene scene, Vector3 position, Vector3 normal) { 
     /**
      * TODO: write the documentation for this function
@@ -231,20 +267,23 @@ float lightIntensity (Scene scene, Vector3 position, Vector3 normal) {
     float intensity = 0;
     for (int i = 0; i < scene.lights.size(); i++) {
         Light light = scene.lights[i];
-        if (light.type == "ambient") {
-            intensity += light.intensity;
-        }
-        else {
-            Vector3 lightDir;
-            if (light.type == "point") {
-                lightDir = light.position - position;
+        if (! isLightObstructed(scene, light, position)) { // this condition allows for shadows
+            // if the light is not obstructed, handle the three types of light differently
+            if (light.type == "ambient") {
+                intensity += light.intensity;
             }
-            if (light.type == "directional") {
-                lightDir = light.direction;
-            }
-            float NdotDir = Vector3::dot(normal, lightDir);
-            if (NdotDir > 0) {
-                intensity += light.intensity  * NdotDir/(Vector3::norm(normal) * Vector3::norm(lightDir));
+            else {
+                Vector3 lightDir;
+                if (light.type == "point") {
+                    lightDir = light.position - position;
+                }
+                if (light.type == "directional") {
+                    lightDir = light.direction;
+                }
+                float NdotDir = Vector3::dot(normal, lightDir);
+                if (NdotDir > 0) {
+                    intensity += light.intensity  * NdotDir/(Vector3::norm(normal) * Vector3::norm(lightDir));
+                }
             }
         }
     }
