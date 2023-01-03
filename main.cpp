@@ -7,6 +7,7 @@
 #include <vector>
 #include <limits>
 #include <math.h>
+#include <typeinfo>
 
 using namespace std;
 
@@ -37,6 +38,14 @@ class Vector3{ // stores the coordinates of a Vector3 in 3D space
         Vector3 operator - (Vector3 B) {
             return Vector3(B.x - this->x, B.y - this->y, B.z - this->z);
         }
+        
+        Vector3 operator * (float scalar) {
+            return Vector3(this->x * scalar, this->y * scalar, this->z * scalar);
+        }
+
+        Vector3 operator / (float scalar) {
+            return Vector3(this->x / scalar, this->y / scalar, this->z / scalar);
+        }
 
         static float distance(Vector3 A, Vector3 B) { // computes the distance between A and B
             return sqrt(pow(B.x - A.x, 2) + pow(B.y - A.y, 2) + pow(B.z - A.z, 2));
@@ -46,8 +55,28 @@ class Vector3{ // stores the coordinates of a Vector3 in 3D space
             return A.x * B.x + A.y * B.y + A.z * B.z;
         }
 
+        static float norm(Vector3 A) {
+            return sqrt(pow(A.x, 2) + pow(A.y, 2) + pow(A.z, 2));
+        }
+
         string toString() {
             return "(" + to_string(this->x) + ", " + to_string(this->y) + ", " + to_string(this->z) + ")";
+        }
+};
+
+class Light {
+    public:
+        string type;
+        float intensity;
+        Vector3 position, direction;
+
+        Light() {} // default constructor
+
+        Light(string type, float intensity, Vector3 position, Vector3 direction) {
+            this->type = type;
+            this->intensity = intensity;
+            this->position = position;
+            this->direction = direction;
         }
 };
 
@@ -65,15 +94,17 @@ class Sphere{ // a sphere that has a geometry (center, radius) and a color
             this->color = color;
         }
 
-        tuple<float, float> intersectRay(Vector3 origin, Vector3 target) {
+        tuple<float, float, Vector3, Vector3, Vector3, Vector3> intersectRay(Vector3 origin, Vector3 target) {
             /**
              * Compute the intersection Vector3(s) between this and the ray that goes
              * from origin and pass by target
              * 
              * @param origin The origin of the ray
              * @param target The target of the ray
-             * @return a couple of floats (t1, t2) containing the intersection Vector3(s)
-             *         (returns (infinity, infinity) if there is no intersection)
+             * @return a tupple (t1, t2, H1, H2; N1, N2) of a couple of floats containing the intersection
+             *         (returns (infinity, infinity) if there is no intersection), a couple of Vector3
+             *         that are the hipoints respectivly at t1 and t2 and finally a couple of Vector3
+             *         that are the normals of the hitpoints (0 if no intersection)
             */
             Vector3 CO = origin - this->center; // vector from the sphere to the origin
             float a = Vector3::dot(target, target);
@@ -81,12 +112,15 @@ class Sphere{ // a sphere that has a geometry (center, radius) and a color
             float c = Vector3::dot(CO, CO) - pow(this->radius, 2);
             float discriminant = pow(b, 2) - 4*a*c;
             if (discriminant < 0) { // case where there is no intersection
-                return make_tuple(numeric_limits<float>::infinity(), numeric_limits<float>::infinity());
+                return make_tuple(numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), Vector3(0, 0, 0), Vector3(0, 0, 0), Vector3(0, 0, 0), Vector3(0, 0, 0));
             }
-            float t1, t2;
-            t1 = (-b - sqrt(discriminant)) / (2*a); 
-            t2 = (-b + sqrt(discriminant)) / (2*a); 
-            return make_tuple(t1, t2);
+            float t1 = (-b - sqrt(discriminant)) / (2*a);
+            float t2 = (-b + sqrt(discriminant)) / (2*a);
+            Vector3 H1 = (target-origin)/Vector3::norm(target-origin) * t1; // hitpoint 1
+            Vector3 H2 = (target-origin)/Vector3::norm(target-origin) * t2; // hitpoint 2
+            Vector3 N1 = H1 - this->center; // normal at H1
+            Vector3 N2 = H2 - this->center; // normal at H2
+            return make_tuple(t1, t2, H1, H2, N1, N2);
         }
 
         string toString() {
@@ -94,44 +128,6 @@ class Sphere{ // a sphere that has a geometry (center, radius) and a color
         }
 };
 
-class Light {
-public:
-    float intensity;
-};
-
-class AmbientLight : public Light {
-public:
-
-    AmbientLight() {} // default constructor
-
-    AmbientLight(float intensity) {
-        this->intensity = intensity;
-    }
-};
-
-class PointLight : public Light {
-public:
-    Vector3 position;
-
-    PointLight() {} // default constructor
-
-    PointLight(float intensity, Vector3 position) {
-        this->intensity = intensity;
-        this->position = position;
-    }
-};
-
-class DirectionalLight : public Light {
-public:
-    Vector3 direction;
-
-    DirectionalLight() {} // default constructor
-
-    DirectionalLight(float intensity, Vector3 direction) {
-        this->intensity = intensity;
-        this->direction = direction;
-    }
-};
 
 class Scene { // a scene that contains objects and a projection plane (viewport)
     public:
@@ -161,11 +157,10 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
                             Sphere(Vector3(0, 0, 9), 1, RGB(0, 255, 0)),
                             Sphere(Vector3(-3, 0, 9), 1, RGB(0, 0, 255)),
                             Sphere(Vector3(0, -10001, 0), 10000, RGB(150, 150, 150)) // ground
-                         },
-                         { // vector of lights in the scene
-                            AmbientLight(.2),
-                            PointLight(1, Vector3(0, -1, 9)),
-                            DirectionalLight(1, Vector3(-120, -60, 0))
+                         }, { // vector of lights in the scene
+                            Light("ambient", .2, Vector3(0, 0, 0), Vector3(0, 0, 0)),
+                            Light("point", 1, Vector3(0, 2, 7), Vector3(0, 0, 0)),
+                            // Light("directional", 1, Vector3(0, 0, 0), Vector3(-120, -60, 0))
                          });
         }
 };
@@ -190,7 +185,7 @@ Vector3 screenToProjPlane(Scene scene, int screenX, int screenY) {
     return Vector3(vpX, vpY, vpZ);
 }
 
-COLORREF traceRay(Scene scene, Vector3 origin, Vector3 target, float t_min, float t_max) {
+tuple<COLORREF, Vector3, Vector3> traceRay(Scene scene, Vector3 origin, Vector3 target, float t_min, float t_max) {
     /**
      * Compute the ray that goes from origin to target and retuns the color of the closest hitpoint with
      * distance betwen t_min and t_max
@@ -200,33 +195,74 @@ COLORREF traceRay(Scene scene, Vector3 origin, Vector3 target, float t_min, floa
      * @param target The ray target (where the ray is headed)
      * @param t_min The minimum distance of a hit Vector3
      * @param t_max The maximum distance of a hit Vector3
+     * @return A tuple containing the color and the normal of the closest hitpoint of the ray 
     */
     float closestDist = numeric_limits<float>::infinity();
+    Vector3 hitPos, hitNormal;
     int closestSphereIndex = -1;
     for (int i = 0; i < scene.spheres.size(); i++) {
-        float t1, t2;
-        tie(t1, t2) = scene.spheres[i].intersectRay(origin, target);
+        float t1, t2; // distance of the hitpoints (infinity if no intersection)
+        Vector3 H1, H2; // hitpoints positions (0 if no intersection)
+        Vector3 N1, N2; // normal at the hitpoints (0 if no intersection)
+        tie(t1, t2, H1, H2, N1, N2) = scene.spheres[i].intersectRay(origin, target);
         if (t_min <= t1 && t1 <= t_max && t1 < closestDist) { // found a better valid hitpoint
             closestSphereIndex = i;
             closestDist = t1;
+            hitPos = H1;
+            hitNormal = N1;
         }
         if (t_min <= t2 && t2 <= t_max && t2 < closestDist) { // found a better valid hitpoint
             closestSphereIndex = i;
             closestDist = t2;
+            hitPos = H2;
+            hitNormal = N2;
         }
     }
     if (closestSphereIndex == -1) { // case where the ray did not intersect any sphere
-        return backgroundColor;
+        return make_tuple(backgroundColor, Vector3(0, 0, 0), Vector3(0, 0, 0));
     }
-    return scene.spheres[closestSphereIndex].color;
+    return make_tuple(scene.spheres[closestSphereIndex].color, hitPos, hitNormal);;
+}
+
+float lightIntensity (Scene scene, Vector3 position, Vector3 normal) { 
+    /**
+     * TODO: write the documentation for this function
+    */
+    float intensity = 0;
+    for (int i = 0; i < scene.lights.size(); i++) {
+        Light light = scene.lights[i];
+        if (light.type == "ambient") {
+            intensity += light.intensity;
+        }
+        else {
+            Vector3 lightDir;
+            if (light.type == "point") {
+                lightDir = light.position - position;
+            }
+            if (light.type == "directional") {
+                lightDir = light.direction;
+            }
+            float NdotDir = Vector3::dot(normal, lightDir);
+            if (NdotDir > 0) {
+                intensity += light.intensity  * NdotDir/(Vector3::norm(normal) * Vector3::norm(lightDir));
+            }
+        }
+    }
+    return max((float) 0, min(intensity, (float) 1)); // clamp intensity between 0 and 1
 }
 
 COLORREF viewportColor(Scene scene, Vector3 vpPos) {
+    /**
+     * TODO: write the docstring for this function
+    */
     Vector3 cameraPos = scene.cameraPos;
-    COLORREF color = traceRay(scene,
+    COLORREF color; // color of the closest solid point
+    Vector3 hitPos, normal; // position and the normal of the geometry at the hitpoint
+    tie(color, hitPos, normal) = traceRay(scene,
                               cameraPos, vpPos,
                               1, numeric_limits<float>::infinity());
-    return color;
+    float intensity = lightIntensity(scene, hitPos, normal);
+    return RGB(GetRValue(color) * intensity, GetGValue(color) * intensity, GetBValue(color) * intensity);
 }
 
 void setPixel(int x,int y, const COLORREF& color=defaultColor) {
