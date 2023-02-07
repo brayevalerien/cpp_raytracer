@@ -7,7 +7,6 @@
 #include <vector>
 #include <limits>
 #include <math.h>
-#include <typeinfo>
 
 using namespace std;
 
@@ -62,6 +61,10 @@ class Vector3{ // stores the coordinates of a Vector3 in 3D space
             return sqrt(pow(A.x, 2) + pow(A.y, 2) + pow(A.z, 2));
         }
 
+        static Vector3 normalize(Vector3 A) {
+            return A/Vector3::norm(A);
+        }
+
         string toString() {
             return "(" + to_string(this->x) + ", " + to_string(this->y) + ", " + to_string(this->z) + ")";
         }
@@ -110,19 +113,20 @@ class Sphere{ // a sphere that has a geometry (center, radius) and a color
              *         that are the normals of the hitpoints (0 if no intersection)
             */
             Vector3 CO = origin - this->center; // vector from the sphere to the origin
-            float a = Vector3::dot(target, target);
-            float b = 2 * Vector3::dot(CO, target);
+            Vector3 rayDir = Vector3::normalize(origin - target); // direction of the ray
+            float a = Vector3::dot(rayDir, rayDir);
+            float b = 2 * Vector3::dot(CO, rayDir);
             float c = Vector3::dot(CO, CO) - pow(this->radius, 2);
             float discriminant = pow(b, 2) - 4*a*c;
             if (discriminant < 0) { // case where there is no intersection
                 return make_tuple(numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), Vector3(0, 0, 0), Vector3(0, 0, 0), Vector3(0, 0, 0), Vector3(0, 0, 0));
             }
-            float t1 = (-b - sqrt(discriminant)) / (2*a);
-            float t2 = (-b + sqrt(discriminant)) / (2*a);
-            Vector3 H1 = (target-origin)/Vector3::norm(target-origin) * t1; // hitpoint 1
-            Vector3 H2 = (target-origin)/Vector3::norm(target-origin) * t2; // hitpoint 2
-            Vector3 N1 = H1 - this->center; // normal at H1
-            Vector3 N2 = H2 - this->center; // normal at H2
+            float t1 = (-b + sqrt(discriminant)) / (2*a);
+            float t2 = (-b - sqrt(discriminant)) / (2*a);
+            Vector3 H1 = rayDir * t1; // hitpoint 1
+            Vector3 H2 = rayDir * t2; // hitpoint 2
+            Vector3 N1 = Vector3::normalize(H1 - this->center); // normal at H1
+            Vector3 N2 = Vector3::normalize(H2 - this->center); // normal at H2
             return make_tuple(t1, t2, H1, H2, N1, N2);
         }
 
@@ -130,7 +134,6 @@ class Sphere{ // a sphere that has a geometry (center, radius) and a color
             return "Center: " + this->center.toString() + ",   radius: " + to_string(this->radius);
         }
 };
-
 
 class Scene { // a scene that contains objects and a projection plane (viewport)
     public:
@@ -163,8 +166,8 @@ class Scene { // a scene that contains objects and a projection plane (viewport)
                             Sphere(Vector3(0, -10001, 0), 10000, RGB(150, 150, 150)) // ground
                          }, { // vector of lights in the scene
                             Light("ambient", .1, Vector3(0, 0, 0), Vector3(0, 0, 0)),
-                            // Light("point", 1, Vector3(0, 2, 7), Vector3(0, 0, 0)),
-                            Light("directional", 1, Vector3(0, 0, 0), Vector3(-1, -1, 2))
+                            Light("point", 1, Vector3(0, 2, 7), Vector3(0, 0, 0)),
+                            // Light("directional", 1, Vector3(0, 0, 0), Vector3(-1, -1, 2))
                          });
         }
 };
@@ -187,6 +190,31 @@ Vector3 screenToProjPlane(Scene scene, int screenX, int screenY) {
     float vpY = screenY * scene.projPlaneHeight/yRes - scene.projPlaneHeight/2;
     float vpZ = scene.projPlaneDistance;
     return Vector3(vpX, vpY, vpZ);
+}
+
+tuple<float, Sphere> closestIntersection(Scene scene, Vector3 origin, Vector3 target, float t_min, float t_max) {
+       /**
+    * Find the closest intersection between the ray comming from origin to target and restricted
+    * between t_min and t_max with the objects in the scene
+   */
+    float tRes = numeric_limits<float>::infinity();
+    Sphere sphereRes;
+    for (Sphere sphere : scene.spheres) {
+        float t1, t2;
+        Vector3 _1, _2, _3, _4; // dummy variables
+        tie(t1, t2, _1, _2, _3, _4) = sphere.intersectRay(origin, target);
+        if (t_min<=t1 && t1<=t_max && t1<tRes) { // a closer intersection is found
+            // update the results
+            tRes = t1;
+            sphereRes = sphere;
+        }
+        if (t_min<=t2 && t2<=t_max && t2<=tRes) { // a closer intersection is found
+            // update the results
+            tRes = t2;
+            sphereRes = sphere;
+        }
+    }
+    return make_tuple(tRes, sphereRes);
 }
 
 tuple<COLORREF, Vector3, Vector3> traceRay(Scene scene, Vector3 origin, Vector3 target, float t_min, float t_max) {
@@ -228,6 +256,38 @@ tuple<COLORREF, Vector3, Vector3> traceRay(Scene scene, Vector3 origin, Vector3 
     return make_tuple(scene.spheres[closestSphereIndex].color, hitPos, hitNormal);;
 }
 
+// bool isLightObstructed(Scene scene, Light light, Vector3 position) {
+//     /**
+//      * Checks if the light is obstructed from position and in the scene (if there is an object
+//      * between the light and position)
+//     */
+//     if (light.type == "ambient") {
+//         return false; // ambient light cannot be obstructed 
+//     }
+//     Vector3 lightPos;
+//     if (light.type == "point") {
+//         lightPos = light.position;
+//     }
+//     if (light.type == "directional") {
+//         lightPos = Vector3(0, 0, 0) - light.direction/Vector3::norm(light.direction) * 100000000; // virtual position of the light
+//     }
+//     // trace the ray from the position to the light and check if an object obstructing the (light) ray
+//     COLORREF _;
+//     Vector3 hitPos, hitNormal; // both equal 0 iff the light is not obstructed
+//     float epsilon = 0.000000000001; // margin for ray collision
+//     tie(_, hitPos, hitNormal) = traceRay(scene,
+//                                          position, lightPos,
+//                                          epsilon, Vector3::distance(position, lightPos)-epsilon);
+//     if (Vector3::norm(hitNormal) <= 0.0000001) {
+//         // std::cout << "Light not obstructed!!!!" << std::endl; // debug
+//         return false; // light is not obstructed
+//     }
+//     else {
+//         std::cout << "hitPos: " << hitPos.toString() << "   hitNormal: " << hitNormal.toString() << std::endl;
+//         return true;
+//     }
+// }
+
 bool isLightObstructed(Scene scene, Light light, Vector3 position) {
     /**
      * Checks if the light is obstructed from position and in the scene (if there is an object
@@ -241,24 +301,22 @@ bool isLightObstructed(Scene scene, Light light, Vector3 position) {
         lightPos = light.position;
     }
     if (light.type == "directional") {
-        lightPos = position - light.direction/Vector3::norm(light.direction) * 1000; // virtual position of the light
-        // lightPos = position - light.direction * numeric_limits<float>::infinity(); // virtual position of the light
+        lightPos = Vector3(0, 0, 0) - Vector3::normalize(light.direction) * 100000000; // virtual position of the light
     }
     // trace the ray from the position to the light and check if an object obstructing the (light) ray
-    COLORREF _;
-    Vector3 hitPos, hitNormal; // both equal 0 iff the light is not obstructed
-    float epsilon = 0.0001; // margin for ray collision
-    tie(_, hitPos, hitNormal) = traceRay(scene,
-                                    position, lightPos,
-                                    epsilon, Vector3::distance(lightPos, position)-epsilon);
-                                    // epsilon, 10000000);
-    if (hitPos == Vector3(0, 0, 0) && hitNormal == Vector3(0, 0, 0)) {
-        return false; // light is not obstructed
+    float tShadow;
+    Sphere sphereShadow;
+    tie(tShadow, sphereShadow) = closestIntersection(scene, position, lightPos, 0.1, 10000000);
+    // tie(tShadow, sphereShadow) = closestIntersection(scene, position, light.position, .00000001, numeric_limits<float>::infinity());
+    if (tShadow < 1000000000000) { // this condition means the ray has found an object
+        std::cout << "Light obstructed by: " << sphereShadow.toString() << std::endl;
+        return true; // light is obstructed
     }
     else {
-        return true;
+        return false;
     }
 }
+
 
 float lightIntensity (Scene scene, Vector3 position, Vector3 normal) { 
     /**
@@ -267,7 +325,8 @@ float lightIntensity (Scene scene, Vector3 position, Vector3 normal) {
     float intensity = 0;
     for (int i = 0; i < scene.lights.size(); i++) {
         Light light = scene.lights[i];
-        if (! isLightObstructed(scene, light, position)) { // this condition allows for shadows
+        // if (!isLightObstructed(scene, light, position)) { // this condition is responsible for the shadows
+        if (true) { // debug
             // if the light is not obstructed, handle the three types of light differently
             if (light.type == "ambient") {
                 intensity += light.intensity;
@@ -280,9 +339,10 @@ float lightIntensity (Scene scene, Vector3 position, Vector3 normal) {
                 if (light.type == "directional") {
                     lightDir = light.direction;
                 }
+                lightDir = Vector3::normalize(lightDir);
                 float NdotDir = Vector3::dot(normal, lightDir);
-                if (NdotDir > 0) {
-                    intensity += light.intensity  * NdotDir/(Vector3::norm(normal) * Vector3::norm(lightDir));
+                if (NdotDir > 0) { // compute diffuse lighting
+                    intensity += light.intensity * NdotDir/(Vector3::norm(normal) * Vector3::norm(lightDir));
                 }
             }
         }
